@@ -24,9 +24,7 @@ android {
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:designsystem"))
-    implementation(project(":core:database"))
-    implementation(project(":core:network"))
-
+    implementation(project(":core:data"))
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
