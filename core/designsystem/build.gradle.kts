@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.desingsystem"
+    namespace = "com.example.designsystem"
     compileSdk {
         version = release(37)
     }
