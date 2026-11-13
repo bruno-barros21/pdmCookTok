@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -37,6 +38,17 @@ android {
 }
 
 dependencies {
+    implementation(project(":feature:feed"))
+    implementation(project(":feature:search"))
+    implementation(project(":feature:creation"))
+    implementation(project(":feature:profile"))
+    implementation(project(":core:model"))
+    implementation(project(":core:designsystem"))
+
+    // Hilt
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
