@@ -1,6 +1,7 @@
-FROM node:20-alpine
+FROM node:18-alpine
 WORKDIR /app
-
-# Comando temporário para manter o contentor vivo e a correr em loop
-# enquanto não programas a verdadeira API em JavaScript/TypeScript.
-CMD ["tail", "-f", "/dev/null"]
+COPY package.json ./
+RUN npm install
+COPY index.js ./
+EXPOSE 8080
+CMD ["node", "index.js"]
