@@ -1,171 +1,232 @@
 package com.example.feed
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.VerticalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.model.Recipe
+import androidx.hilt.navigation.compose.hiltViewModel
 
-@Composable
-fun FeedRoute(
-    viewModel: FeedViewModel = viewModel(),
-    modifier: Modifier = Modifier
-) {
-    val uiState by viewModel.uiState.collectAsState()
-
-    FeedScreen(
-        uiState = uiState,
-        onFilterSelected = viewModel::onFilterChange,
-        onLikeClick = viewModel::onToggleLike,
-        onFavoriteClick = viewModel::onToggleFavorite,
-        onRetryClick = { viewModel.refresh() },
-        modifier = modifier
-    )
-}
-
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun FeedScreen(
-    uiState: FeedUiState,
-    onFilterSelected: (String) -> Unit,
-    onLikeClick: (String) -> Unit,
-    onFavoriteClick: (Recipe) -> Unit,
-    onRetryClick: () -> Unit,
-    modifier: Modifier = Modifier
+    viewModel: FeedViewModel = hiltViewModel(),
+    onNavigateToAuth: () -> Unit = {}
 ) {
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        Text(
-            text = "CookTok Feed",
-            style = MaterialTheme.typography.headlineMedium
-        )
+    val state by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-        // Filtros do Feed (Recentes, Populares, Melhor Rating)
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+    LaunchedEffect(state.userMessage) {
+        state.userMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.clearUserMessage()
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
         ) {
-            FilterChip(
-                selected = uiState.selectedFilter == "recent",
-                onClick = { onFilterSelected("recent") },
-                label = { Text("Recentes") }
-            )
-            FilterChip(
-                selected = uiState.selectedFilter == "popular",
-                onClick = { onFilterSelected("popular") },
-                label = { Text("Populares") }
-            )
-            FilterChip(
-                selected = uiState.selectedFilter == "rating",
-                onClick = { onFilterSelected("rating") },
-                label = { Text("Top Rating") }
-            )
-        }
+            when {
+                state.isLoading && state.feedItems.isEmpty() -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
 
-        if (uiState.isLoading) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        }
+                state.feedItems.isEmpty() -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Nenhum CookTok encontrado para estes filtros.",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(onClick = { viewModel.resetFilters() }) {
+                            Text("Limpar Filtros")
+                        }
+                    }
+                }
 
-        // Banner de Graceful Degradation (Modo Offline)
-        if (uiState.isOfflineError) {
-            Surface(
-                color = MaterialTheme.colorScheme.errorContainer,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.padding(8.dp)
-                ) {
-                    Text(
-                        text = "Modo Offline: a mostrar receitas guardadas",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                    AssistChip(
-                        onClick = onRetryClick,
-                        label = { Text("Tentar") }
-                    )
+                else -> {
+                    val pagerState = rememberPagerState(pageCount = { state.feedItems.size })
+
+                    VerticalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize()
+                    ) { pageIndex ->
+                        val item = state.feedItems[pageIndex]
+                        CookTokFeedPage(
+                            item = item,
+                            isFollowingAuthor = item.recipe.authorId in state.followedAuthorIds,
+                            isGuest = state.isGuest,
+                            onToggleFollow = {
+                                viewModel.toggleFollowAuthor(item.recipe.authorId, item.authorUsername)
+                            },
+                            onToggleLike = { viewModel.toggleLike(item.recipe.id) },
+                            onOpenComments = { viewModel.openCommentsSheet(item) },
+                            onOpenRating = { viewModel.openRatingDialog(item) },
+                            onToggleFavorite = { viewModel.toggleFavorite(item.recipe.id) },
+                            onOpenRecipeDetails = { viewModel.openRecipeDetails(item) },
+                            onOpenShare = { viewModel.openShareDialog(item) }
+                        )
+                    }
                 }
             }
-        }
 
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.weight(1f)
-        ) {
-            items(uiState.recipes, key = { it.id }) { recipe ->
-                RecipeFeedCard(
-                    recipe = recipe,
-                    onLikeClick = { onLikeClick(recipe.id) },
-                    onFavoriteClick = { onFavoriteClick(recipe) }
-                )
+            // Barra Superior Flutuante: Amigos | Modo (Para Ti / Top Visitante) | Filtros Rating | Simular Visitante
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Botão Amigos (abre lista de amigos com ícone "Olho")
+                FilledTonalIconButton(onClick = { viewModel.setFriendsSheetOpen(true) }) {
+                    Icon(Icons.Default.Group, contentDescription = "Amigos")
+                }
+
+                // Indicador do Algoritmo ativo + alternador rápido de Modo Visitante para testes
+                Surface(
+                    onClick = { viewModel.setGuestMode(!state.isGuest) },
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.Black.copy(alpha = 0.45f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (state.isOfflineFallback) {
+                            Icon(
+                                imageVector = Icons.Default.WifiOff,
+                                contentDescription = "Offline",
+                                tint = Color(0xFFFFD54F),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+                        Text(
+                            text = if (state.isGuest) "Top CookToks • Visitante" else "Para Ti • CookTok",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // Botão Filtros por Rating / Categoria / Ordenação
+                BadgedBox(
+                    badge = {
+                        if (state.filterState.activeFiltersCount > 0) {
+                            Badge { Text(state.filterState.activeFiltersCount.toString()) }
+                        }
+                    }
+                ) {
+                    FilledTonalIconButton(onClick = { viewModel.setFilterSheetOpen(true) }) {
+                        Icon(Icons.Default.Tune, contentDescription = "Filtros por Rating")
+                    }
+                }
             }
         }
     }
-}
 
-@Composable
-fun RecipeFeedCard(
-    recipe: Recipe,
-    onLikeClick: () -> Unit,
-    onFavoriteClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = recipe.title, style = MaterialTheme.typography.titleLarge)
-            Text(
-                text = "Por ${recipe.authorName} · ${recipe.durationMinutes} min · ${recipe.difficulty}",
-                style = MaterialTheme.typography.labelMedium
-            )
-            recipe.locationName?.let { loc ->
-                Text(text = "📍 $loc", style = MaterialTheme.typography.bodySmall)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(text = recipe.description, style = MaterialTheme.typography.bodyMedium)
+    // --- Modais e Diálogos do Feed ---
+    state.selectedRecipeForDetails?.let { item ->
+        RecipeDetailsBottomSheet(
+            item = item,
+            onDismiss = { viewModel.closeRecipeDetails() }
+        )
+    }
 
-            if (recipe.ingredients.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Ingredientes: " + recipe.ingredients.joinToString { "${it.name} (${it.quantity}${it.unit})" },
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
+    state.selectedRecipeForComments?.let { item ->
+        FeedCommentsBottomSheet(
+            item = item,
+            isGuest = state.isGuest,
+            onAddComment = { text -> viewModel.addComment(item.recipe.id, text) },
+            onLoginClick = {
+                viewModel.closeCommentsSheet()
+                viewModel.setGuestMode(false)
+                onNavigateToAuth()
+            },
+            onDismiss = { viewModel.closeCommentsSheet() }
+        )
+    }
 
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onLikeClick) {
-                    Text(if (recipe.isLiked) "♥ ${recipe.likesCount}" else "♡ ${recipe.likesCount}")
-                }
-                OutlinedButton(onClick = onFavoriteClick) {
-                    Text(if (recipe.isFavorite) "★ Guardado" else "☆ Guardar Offline")
-                }
-            }
-        }
+    state.selectedRecipeForRating?.let { item ->
+        StarRatingDialog(
+            item = item,
+            onSubmitRating = { stars -> viewModel.submitStarRating(item.recipe.id, stars) },
+            onDismiss = { viewModel.closeRatingDialog() }
+        )
+    }
+
+    if (state.isFilterSheetOpen) {
+        FeedFiltersBottomSheet(
+            currentFilter = state.filterState,
+            isGuest = state.isGuest,
+            onApply = { viewModel.applyFilters(it) },
+            onReset = { viewModel.resetFilters() },
+            onDismiss = { viewModel.setFilterSheetOpen(false) }
+        )
+    }
+
+    if (state.isFriendsSheetOpen) {
+        FeedFriendsListSheet(
+            friends = state.friends,
+            followedAuthorIds = state.followedAuthorIds,
+            onInspectFriend = { viewModel.inspectFriendProfile(it) },
+            onToggleFollow = { friend -> viewModel.toggleFollowAuthor(friend.id, friend.username) },
+            onDismiss = { viewModel.setFriendsSheetOpen(false) }
+        )
+    }
+
+    state.inspectedFriend?.let { friend ->
+        FeedFriendProfileSheet(
+            friend = friend,
+            isFollowing = friend.id in state.followedAuthorIds,
+            onToggleFollow = { viewModel.toggleFollowAuthor(friend.id, friend.username) },
+            onDismiss = { viewModel.closeInspectedFriendProfile() }
+        )
+    }
+
+    state.selectedRecipeForShare?.let { item ->
+        FeedShareDialog(
+            item = item,
+            friends = state.friends,
+            onConfirmShare = { friend -> viewModel.confirmShareWithFriend(item, friend) },
+            onDismiss = { viewModel.closeShareDialog() }
+        )
     }
 }
