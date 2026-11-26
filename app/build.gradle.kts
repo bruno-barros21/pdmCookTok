@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
 }
 
 android {
@@ -42,12 +43,23 @@ dependencies {
     implementation(project(":feature:search"))
     implementation(project(":feature:creation"))
     implementation(project(":feature:profile"))
+    // Módulos Core
     implementation(project(":core:model"))
+    implementation(project(":core:data"))
+    implementation(project(":core:database"))
+    implementation(project(":core:network"))
     implementation(project(":core:designsystem"))
 
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+
+    // Navegação em Compose (Single-Activity + NavHost)
+    implementation("androidx.navigation:navigation-compose:2.8.5")
+
+    // Ícones Material 3 e GPS
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
